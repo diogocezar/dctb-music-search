@@ -50,11 +50,11 @@
         /**
         * Musics to download
         */
-        public function toDownload($startAt=1){
+        public function toDownload($startAt=1, $endAt=INF){
 			$lines = file($this->file);
 			$toDownload = [];
         	foreach ($lines as $line_num => $line){
-        		if($line_num>$startAt){
+        		if($line_num>$startAt && $line_num<$endAt){
 	        		$explode = explode("#", $line);
 	        		$music_line = str_replace("\n", "", $explode[1]);
 	        		$artist_line = $explode[0];
@@ -72,12 +72,18 @@
         */
         public function go(){
         	while(true){
-	        	$json   = json_decode($this->_curl($this->url));
-	        	$music  = strtoupper($json->musicas[0]->tocando[0]->song);
-	        	$artist = strtoupper($json->musicas[0]->tocando[0]->singer);
-	        	if(!$this->search($artist, $music)){
-	        		echo "Nova música encontrada: " . $artist . "#" . $music . "\n";
-	        		$this->insert($artist, $music);
+        		$curl   = $this->_curl($this->url);
+        		if($curl != false){
+					$json   = json_decode($curl);
+					$music  = strtoupper($json->musicas[0]->tocando[0]->song);
+					$artist = strtoupper($json->musicas[0]->tocando[0]->singer);
+					if(!$this->search($artist, $music)){
+						echo "Nova música encontrada: " . $artist . "#" . $music . "\n";
+						$this->insert($artist, $music);
+					}
+	        	}
+	        	else{
+	        		echo "Conexão falhou. Tentando novamente em " . $this->time_interval . " segundos." . "\n";
 	        	}
 	        	sleep($this->time_interval);
 	        }
@@ -126,33 +132,15 @@
 			);
 			curl_setopt_array($ch, $options);
 			$query = curl_exec($ch); 
-			$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);	
-			curl_close($ch);
-			$i = 0;
-			if($http_status != 0){
-				while($http_status != 200){
-					$i++;
-					$query = curl_exec($curl_handle);
-					$http_status = curl_getinfo($curl_handle, CURLINFO_HTTP_CODE);
-					if($i == 10){
-						$filename = $this->error;
-						$file = fopen($filename, "a+");
-						fwrite($file, "\n(". date("d-m-Y H:i:s") . ") -> HOUVE UM ERRO DEPOIS DE 10 TENTATIVAS AO ACESSAR: " . $url); 
-						fclose($file);
-						$http_status == 200;
-						$query = false;
-					}
-					curl_close($curl_handle);
-					sleep(10);
-				}
-			}
-			else{
+			$http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			if($http_status != 200){
 				$filename = $this->error;
 				$file = fopen($filename, "a+");
-				fwrite($file, "\n(". date("d-m-Y H:i:s") . ") -> ERRO NO CURL: " . $url); 
+				fwrite($file, "\n(". date("d-m-Y H:i:s") . ") -> ERRO AO ACESSAR A URL: " . $url); 
 				fclose($file);
-				$query = "";
+				$query = false;
 			}
+			curl_close($ch);
 			return $query;
 		}
 	}
